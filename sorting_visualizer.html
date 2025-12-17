@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Sorting Visualizer — Bubble / Selection / Insertion</title>
+  <style>
+      :root{
+    --bg:#ffffff;
+    --panel:#ffffff;
+    --panel2:#f6f7fb;
+    --text:#121826;      /* main text */
+    --muted:#4b5563;     /* secondary text */
+    --line:#d1d5db;      /* borders */
+    --good:#16a34a;
+    --warn:#f59e0b;
+    --bad:#dc2626;
+    --info:#2563eb;
+    --cmp:#f59e0b;
+    --swap:#dc2626;
+    --key:#2563eb;
+    --sorted:#16a34a;
+    --shadow: 0 10px 30px rgba(0,0,0,.08);
+    --r:18px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background: radial-gradient(1200px 900px at 20% -10%, #1b2a66 0%, transparent 55%),
+                          radial-gradient(1200px 900px at 110% 10%, #3a1c5a 0%, transparent 55%),
+                          var(--bg);
+      color:var(--text); font-family:var(--sans);
+    }
+    .wrap{max-width:1200px; margin:0 auto; padding:18px;}
+    header{
+      display:flex; gap:14px; align-items:center; justify-content:space-between;
+      padding:14px 16px; background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.08); border-radius:var(--r); box-shadow:var(--shadow);
+      position:sticky; top:10px; backdrop-filter: blur(10px);
+    }
+    header h1{margin:0; font-size:18px; letter-spacing:.2px}
+    header .hint{color:var(--muted); font-size:13px}
+    .grid{display:grid; grid-template-columns: 1.35fr .9fr; gap:16px; margin-top:16px;}
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.09); border-radius:var(--r); box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .card .head{
+      padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background:linear-gradient(180deg, rgba(255,255,255,.04), transparent);
+    }
+    .tabs{display:flex; gap:8px; flex-wrap:wrap}
+    .tab{
+      border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.18);
+      padding:7px 10px; border-radius:999px; color:var(--text); cursor:pointer;
+      font-size:13px;
+    }
+    .tab.active{border-color:rgba(122,162,255,.9); box-shadow:0 0 0 3px rgba(122,162,255,.18) inset;}
+    .controls{padding:12px 14px; display:grid; gap:12px;}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    button{
+      border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.18);
+      color:var(--text); padding:9px 12px; border-radius:12px; cursor:pointer;
+      font-size:13px;
+    }
+    button:hover{border-color:rgba(255,255,255,.25)}
+    button.primary{border-color:rgba(122,162,255,.9); background:rgba(122,162,255,.16)}
+    button.danger{border-color:rgba(255,107,122,.8); background:rgba(255,107,122,.12)}
+    button:disabled{opacity:.5; cursor:not-allowed}
+    .pill{
+      display:inline-flex; gap:8px; align-items:center;
+      padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.15); font-size:12px; color:var(--muted)
+    }
+    .pill b{color:var(--text); font-weight:600}
+    label{font-size:12px; color:var(--muted)}
+    input[type="range"]{width:160px}
+    select{
+      border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.18);
+      color:var(--text); padding:8px 10px; border-radius:12px; font-size:13px;
+    }
+    .viz{
+      padding:10px 12px 14px;
+      background:linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.06));
+    }
+    .bars{
+      height:420px; display:flex; gap:6px; align-items:flex-end; padding:14px 14px 42px;
+      border-radius:14px; border:1px dashed rgba(255,255,255,.13);
+      background: radial-gradient(700px 260px at 50% 0%, rgba(122,162,255,.12), transparent 60%);
+      overflow:hidden; position:relative;
+    }
+    .bars::before{
+      content:""; position:absolute; inset:-55%;
+      background:
+        radial-gradient(60% 60% at 30% 30%, rgba(99,140,255,0.18), transparent 60%),
+        radial-gradient(55% 55% at 70% 70%, rgba(255,140,195,0.16), transparent 60%),
+        linear-gradient(120deg, rgba(52, 211, 153, 0.12), rgba(59, 130, 246, 0.12), rgba(236, 72, 153, 0.12));
+      background-size: 140% 140%, 140% 140%, 220% 220%;
+      background-position: 0% 0%, 100% 100%, 50% 50%;
+      filter: blur(14px);
+      animation: bars-drift 3s ease-in-out infinite alternate, bars-flow 10s ease-in-out infinite;
+      z-index:0;
+    }
+    .bar{
+      z-index:1;
+    }
+    @keyframes bars-drift{
+      0%   { transform: translate3d(-10%, -8%, 0) rotate(0deg); }
+      50%  { transform: translate3d(10%, 12%, 0) rotate(4deg); }
+      100% { transform: translate3d(-8%, 8%, 0) rotate(-3deg); }
+    }
+    @keyframes bars-flow{
+      0%   { background-position: 0% 0%, 100% 100%, 30% 70%; }
+      50%  { background-position: 90% 30%, 20% 80%, 70% 30%; }
+      100% { background-position: 0% 0%, 100% 100%, 40% 80%; }
+    }
+    .bar{
+      flex:1; min-width:8px; position:relative;
+      border-radius:10px 10px 6px 6px;
+      border: 2px solid #111;
+      background: rgba(17,17,17,.08);
+      transition: transform .18s ease, height .18s ease, background .18s ease, border-color .18s ease, opacity .18s ease;
+    }
+    .bar .val{
+      position:absolute; left:50%; bottom:-22px; transform:translateX(-50%);
+      font-size:11px; color:var(--muted); user-select:none;
+      font-family:var(--mono);
+    }
+    .bar.sorted{background: rgba(90,240,165,.18); border-color: rgba(90,240,165,.55)}
+    .bar.cmp{background: rgba(255,212,121,.18); border-color: rgba(255,212,121,.6)}
+    .bar.swap{background: rgba(255,107,122,.18); border-color: rgba(255,107,122,.6); transform: translateY(-8px)}
+    .bar.key{background: rgba(121,184,255,.18); border-color: rgba(121,184,255,.65); transform: translateY(-10px)}
+    .bar.dim{opacity:.45}
+    .legend{display:flex; gap:10px; flex-wrap:wrap; padding:10px 14px; border-top:1px solid rgba(255,255,255,.08)}
+    .dot{width:10px; height:10px; border-radius:999px; display:inline-block; margin-right:6px; vertical-align:middle}
+    .dot.cmp{background:var(--cmp)} .dot.swap{background:var(--bad)} .dot.key{background:var(--key)} .dot.sorted{background:var(--sorted)}
+    .right{
+      display:grid; gap:16px;
+    }
+    pre{
+      margin:0; padding:12px 14px; overflow:auto;
+      font-family:var(--mono); font-size:12px; line-height:1.55;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+    }
+    .line{display:block; padding:0 6px; border-radius:8px}
+    .line.active{background:rgba(255,212,121,.16); outline:1px solid rgba(255,212,121,.35)}
+    .explain{
+      padding:12px 14px; border-radius:14px;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.10);
+      color:var(--muted); font-size:13px;
+    }
+    .kv{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    .kv .pill{justify-content:space-between}
+    .footer{
+      margin-top:16px; color:var(--muted); font-size:12px; text-align:center;
+      opacity:.9;
+    }
+    @media (max-width: 980px){
+      .grid{grid-template-columns: 1fr;}
+      .bars{height:320px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Interactive Sorting Visualizer</h1>
+        <div class="hint">Bubble · Selection · Insertion — step, play, pause, speed, presets, counters, pseudocode highlight</div>
+      </div>
+      <div class="pill"><b id="algoName">Bubble Sort</b><span id="subHint">Adjacent swaps “bubble” max to the end</span></div>
+    </header>
+    <div class="grid">
+      <!-- LEFT: Visualizer -->
+      <div class="card">
+        <div class="head">
+          <div class="tabs" role="tablist" aria-label="Algorithms">
+            <button class="tab active" data-algo="bubble">Bubble</button>
+            <button class="tab" data-algo="selection">Selection</button>
+            <button class="tab" data-algo="insertion">Insertion</button>
+          </div>
+          <div class="row">
+            <span class="pill">Comparisons: <b id="cmpCount">0</b></span>
+            <span class="pill" id="swapOrShiftPill">Swaps: <b id="swapCount">0</b></span>
+          </div>
+        </div>
+        <div class="viz">
+          <div class="bars" id="bars" aria-label="Array visualization"></div>
+          <div class="legend">
+            <span><span class="dot cmp"></span>Comparing</span>
+            <span><span class="dot swap"></span>Swap / Move</span>
+            <span><span class="dot key"></span>Key / Current Min</span>
+            <span><span class="dot sorted"></span>Sorted region</span>
+          </div>
+        </div>
+        <div class="controls">
+          <div class="row">
+            <button class="primary" id="playBtn">▶ Play</button>
+            <button id="stepBtn">⤼ Step</button>
+            <button id="pauseBtn" disabled>⏸ Pause</button>
+            <button class="danger" id="resetBtn">↻ Reset</button>
+          </div>
+          <div class="row">
+            <label>Size
+              <input type="range" id="sizeSlider" min="5" max="40" value="14" />
+              <span class="pill"><b id="sizeVal">14</b></span>
+            </label>
+            <label>Speed
+              <input type="range" id="speedSlider" min="0" max="100" value="35" />
+              <span class="pill"><b id="speedVal">Medium</b></span>
+            </label>
+            <label>Preset
+              <select id="presetSel">
+                <option value="random">Random</option>
+                <option value="nearly">Nearly sorted</option>
+                <option value="reversed">Reversed</option>
+                <option value="few">Few unique (duplicates)</option>
+              </select>
+            </label>
+            <label>Order
+              <select id="orderSel">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <span class="pill">i: <b id="varI">–</b></span>
+            <span class="pill">j: <b id="varJ">–</b></span>
+            <span class="pill">minIndex: <b id="varMin">–</b></span>
+            <span class="pill">key: <b id="varKey">–</b></span>
+            <span class="pill">pass boundary: <b id="varBound">–</b></span>
+          </div>
+          <div class="explain" id="explain">
+            Press <b>Step</b> to advance one meaningful action (compare/swap/shift/insert/mark-sorted).
+          </div>
+        </div>
+      </div>
+      <!-- RIGHT: Pseudocode + Stats -->
+      <div class="right">
+        <div class="card">
+          <div class="head">
+            <div class="pill"><b>Pseudocode</b> (highlight follows execution)</div>
+            <div class="pill">Writes: <b id="writeCount">0</b></div>
+          </div>
+          <div style="padding:12px 14px;">
+            <pre id="codeBox"></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="head">
+            <div class="pill"><b>Teaching notes</b></div>
+            <div class="pill">Status: <b id="status">Ready</b></div>
+          </div>
+          <div style="padding:12px 14px;">
+            <div class="explain" id="notes">
+              Try <b>Nearly sorted</b> with <b>Insertion</b> — you’ll see very few shifts.
+            </div>
+            <div style="height:10px"></div>
+            <div class="kv">
+              <span class="pill">Time (worst): <b id="complexity">O(n²)</b></span>
+              <span class="pill">Extra space: <b id="space">O(1)</b></span>
+              <span class="pill">Stable? <b id="stable">Depends</b></span>
+              <span class="pill">Best case: <b id="bestCase">—</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">Built by Atharva Potnis © 2025</div>
+  </div>
+<script>
+/* =========================
+   Helpers / State
+========================= */
+const $ = (q)=>document.querySelector(q);
+const barsEl = $("#bars");
+const state = {
+  algo: "bubble",
+  arr: [],
+  originalArr: [],
+  gen: null,
+  playing: false,
+  timer: null,
+  stepDelayMs: 260,
+  order: "asc",
+  size: 14,
+  preset: "random",
+  // counters
+  comparisons: 0,
+  swaps: 0,
+  writes: 0,
+  // highlights
+  comparing: [],
+  swapping: [],
+  keyIndex: null,
+  sortedMask: [],
+  dimMask: [],
+  // vars
+  i: null, j: null, minIndex: null, key: null, bound: null,
+  codeActiveLine: null,
+};
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+function isAsc(){ return state.order === "asc"; }
+function cmp(a,b){
+  // returns true if a should come after b (so needs to move right in ascending)
+  return isAsc() ? (a > b) : (a < b);
+}
+function labelSpeed(v){
+  if (v < 20) return "Slow";
+  if (v < 45) return "Medium";
+  if (v < 75) return "Fast";
+  return "Very fast";
+}
+function delayFromSpeed(v){
+  // v:0..100 ; smaller => slower
+  // map to 700..40 ms
+  const ms = 700 - (v/100)*660;
+  return clamp(ms, 40, 700);
+}
+/* =========================
+   Array generation
+========================= */
+function makeArray(n, preset){
+  let a = [];
+  if (preset === "random"){
+    for (let i=0;i<n;i++) a.push(5 + Math.floor(Math.random()*95));
+  } else if (preset === "nearly"){
+    for (let i=0;i<n;i++) a.push(5 + Math.floor((i/(n-1))*95));
+    // small perturbations
+    const swaps = Math.max(1, Math.floor(n/6));
+    for (let k=0;k<swaps;k++){
+      const i = Math.floor(Math.random()*n);
+      const j = Math.floor(Math.random()*n);
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+  } else if (preset === "reversed"){
+    for (let i=0;i<n;i++) a.push(5 + Math.floor((1 - i/(n-1))*95));
+  } else if (preset === "few"){
+    const pool = [15, 25, 35, 45, 55, 65, 75, 85];
+    for (let i=0;i<n;i++) a.push(pool[Math.floor(Math.random()*pool.length)]);
+  }
+  return a;
+}
+/* =========================
+   Rendering
+========================= */
+function resetHighlights(){
+  state.comparing = [];
+  state.swapping = [];
+  state.keyIndex = null;
+  state.dimMask = [];
+  state.codeActiveLine = null;
+  state.i = state.j = state.minIndex = state.key = state.bound = null;
+}
+function ensureMasks(){
+  state.sortedMask = new Array(state.arr.length).fill(false);
+  state.dimMask = new Array(state.arr.length).fill(false);
+}
+function renderBars(){
+  barsEl.innerHTML = "";
+  // Include key value when it's lifted out (null slot) so bar heights stay stable during shifts
+  const nums = state.arr.filter(v => v !== null);
+  if (state.key !== null && state.key !== undefined) nums.push(state.key);
+  const maxVal = Math.max(...nums, 1);
+  state.arr.forEach((v, idx)=>{
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    // keep hole bars at key height so they don't collapse visually
+    const valForHeight = (v === null && state.keyIndex === idx) ? state.key : v;
+    bar.style.height = `${(valForHeight/maxVal)*100}%`;
+    bar.dataset.idx = idx;
+    const val = document.createElement("div");
+    val.className = "val";
+    // Show the key value on the moving "hole" so it doesn't disappear during shifts
+    const labelVal = (v === null && state.keyIndex === idx) ? state.key : v;
+    val.textContent = (labelVal === null || labelVal === undefined) ? "" : labelVal;
+    bar.appendChild(val);
+    barsEl.appendChild(bar);
+  });
+  applyBarClasses();
+}
+function applyBarClasses(){
+  const nodes = [...barsEl.children];
+  nodes.forEach((bar, idx)=>{
+    bar.classList.remove("cmp","swap","key","sorted","dim");
+    if (state.dimMask[idx]) bar.classList.add("dim");
+    if (state.sortedMask[idx]) bar.classList.add("sorted");
+    if (state.comparing.includes(idx)) bar.classList.add("cmp");
+    if (state.swapping.includes(idx)) bar.classList.add("swap");
+    if (state.keyIndex === idx) bar.classList.add("key");
+  });
+}
+function setExplain(text){
+  $("#explain").innerHTML = text;
+}
+function setNotes(text){
+  $("#notes").innerHTML = text;
+}
+function setStatus(text){ $("#status").textContent = text; }
+function updateHeader(){
+  const nameMap = {
+    bubble: ["Bubble Sort", "Adjacent swaps “bubble” max to the end"],
+    selection: ["Selection Sort", "Scan for minimum and swap it to the front"],
+    insertion: ["Insertion Sort", "Insert each key into the sorted left side"],
+  };
+  $("#algoName").textContent = nameMap[state.algo][0];
+  $("#subHint").textContent  = nameMap[state.algo][1];
+}
+function updateStats(){
+  $("#cmpCount").textContent = state.comparisons;
+  $("#swapCount").textContent = state.swaps;
+  $("#writeCount").textContent = state.writes;
+  $("#varI").textContent = state.i ?? "–";
+  $("#varJ").textContent = state.j ?? "–";
+  $("#varMin").textContent = state.minIndex ?? "–";
+  $("#varKey").textContent = state.key ?? "–";
+  $("#varBound").textContent = state.bound ?? "–";
+  $("#swapOrShiftPill").innerHTML = (state.algo==="insertion")
+    ? `Shifts: <b id="swapCount">${state.swaps}</b>`
+    : `Swaps: <b id="swapCount">${state.swaps}</b>`;
+}
+function renderCode(){
+  const codes = {
+    bubble: [
+      "for i = 0 .. n-2",
+      "  swapped = false",
+      "  for j = 0 .. n-2-i",
+      "    if a[j] > a[j+1]  (or < for desc)",
+      "      swap(a[j], a[j+1])",
+      "      swapped = true",
+      "  mark a[n-1-i] sorted",
+      "  if not swapped: break"
+    ],
+    selection: [
+      "for i = 0 .. n-2",
+      "  minIndex = i",
+      "  for j = i+1 .. n-1",
+      "    if a[j] < a[minIndex]  (or > for desc)",
+      "      minIndex = j",
+      "  swap(a[i], a[minIndex])",
+      "  mark a[i] sorted"
+    ],
+    insertion: [
+      "for i = 1 .. n-1",
+      "  key = a[i]",
+      "  j = i - 1",
+      "  while j >= 0 and a[j] > key  (or < for desc)",
+      "    a[j+1] = a[j]   (shift)",
+      "    j = j - 1",
+      "  a[j+1] = key",
+      "  mark left side [0..i] sorted"
+    ],
+  };
+  const lines = codes[state.algo].map((t, idx)=>{
+    const span = document.createElement("span");
+    span.className = "line" + (state.codeActiveLine===idx ? " active" : "");
+    span.textContent = (idx+1).toString().padStart(2,"0") + "  " + t;
+    return span;
+  });
+  const pre = $("#codeBox");
+  pre.innerHTML = "";
+  lines.forEach(l=>pre.appendChild(l));
+}
+function setComplexityPanel(){
+  if (state.algo === "bubble"){
+    $("#complexity").textContent = "O(n²)";
+    $("#space").textContent = "O(1)";
+    $("#stable").textContent = "Yes";
+    $("#bestCase").textContent = "O(n) with early-exit";
+    setNotes("Bubble: after each pass, the last element becomes fixed (sorted). Try “Nearly sorted” + Play to see early-exit effect.");
+  } else if (state.algo === "selection"){
+    $("#complexity").textContent = "O(n²)";
+    $("#space").textContent = "O(1)";
+    $("#stable").textContent = "Usually No (swap breaks order)";
+    $("#bestCase").textContent = "O(n²)";
+    setNotes("Selection: the scan must look through the unsorted part even if it finds a small element early. One swap per outer loop.");
+  } else {
+    $("#complexity").textContent = "O(n²)";
+    $("#space").textContent = "O(1)";
+    $("#stable").textContent = "Yes";
+    $("#bestCase").textContent = "O(n) (already sorted)";
+    setNotes("Insertion: think “hand of cards”. Left side is sorted; take a key and shift bigger ones right to make space.");
+  }
+}
+/* =========================
+   Step Engines (Generators)
+   Each yield is an ACTION object
+========================= */
+function* bubbleSteps(arr){
+  const n = arr.length;
+  for (let i=0; i<n-1; i++){
+    yield {type:"line", line:0};
+    yield {type:"vars", i, bound: n-1-i};
+    let swapped = false;
+    yield {type:"line", line:1};
+    for (let j=0; j<n-1-i; j++){
+      yield {type:"line", line:2};
+      yield {type:"vars", j};
+      yield {type:"compare", i, j, a:j, b:j+1, line:3, msg:`Compare a[${j}] and a[${j+1}]`};
+      if (cmp(arr[j], arr[j+1])){ // needs swap
+        yield {type:"swap", a:j, b:j+1, line:4, msg:`Swap because ${arr[j]} and ${arr[j+1]} are in wrong order`};
+        [arr[j], arr[j+1]] = [arr[j+1], arr[j]];
+        swapped = true;
+        yield {type:"line", line:5};
+      }
+    }
+    yield {type:"markSorted", idx:n-1-i, line:6, msg:`After pass i=${i}, position ${n-1-i} is fixed.`};
+    if (!swapped){
+      yield {type:"line", line:7, msg:`No swaps in a full pass → already sorted. Stop.`};
+      break;
+    }
+  }
+  yield {type:"done", msg:"Finished!"};
+}
+function* selectionSteps(arr){
+  const n = arr.length;
+  for (let i=0; i<n-1; i++){
+    yield {type:"line", line:0};
+    yield {type:"vars", i, bound: i};
+    let minIndex = i;
+    yield {type:"line", line:1};
+    yield {type:"setKey", idx:minIndex, line:1, msg:`Start scan: current best candidate at index ${minIndex}`};
+    yield {type:"vars", minIndex};
+    for (let j=i+1; j<n; j++){
+      yield {type:"line", line:2};
+      yield {type:"vars", j};
+      yield {type:"compare", a:j, b:minIndex, line:3, msg:`Compare a[${j}] with current best a[${minIndex}]`};
+      const better = isAsc() ? (arr[j] < arr[minIndex]) : (arr[j] > arr[minIndex]);
+      if (better){
+        minIndex = j;
+        yield {type:"line", line:4};
+        yield {type:"setKey", idx:minIndex, msg:`New best found at index ${minIndex}`};
+        yield {type:"vars", minIndex};
+      }
+    }
+    yield {type:"line", line:5};
+    if (minIndex !== i){
+      yield {type:"swap", a:i, b:minIndex, msg:`Swap best element into position ${i}`};
+      [arr[i], arr[minIndex]] = [arr[minIndex], arr[i]];
+    } else {
+      yield {type:"msg", msg:`Best already at position ${i} (no swap).`};
+    }
+    yield {type:"line", line:6};
+    yield {type:"markSorted", idx:i, msg:`Position ${i} is now sorted.`};
+  }
+  yield {type:"markAllSorted"};
+  yield {type:"done", msg:"Finished!"};
+}
+function* insertionSteps(arr){
+  const n = arr.length;
+  yield {type:"markSortedRange", upto:0, msg:"First element is considered sorted."};
+  for (let i=1; i<n; i++){
+    yield {type:"line", line:0};
+    yield {type:"vars", i, bound:i};
+    const key = arr[i];
+    yield {type:"line", line:1};
+    yield {type:"vars", key};
+    yield {type:"setKey", idx:i, msg:`Pick key = a[${i}] = ${key}`};
+    let j = i-1;
+    yield {type:"line", line:2};
+    yield {type:"vars", j};
+    yield {type:"line", line:3};
+    while (j >= 0 && (isAsc() ? (arr[j] > key) : (arr[j] < key))){
+    // compare current element with the lifted key (highlight key hole)
+    yield {type:"compareKey", a:j, msg:`Compare a[${j}] with key ${key}`};
+      // shift
+      yield {type:"line", line:4};
+      yield {type:"shift", from:j, to:j+1, msg:`Shift a[${j}] → a[${j+1}]`};
+      arr[j+1] = arr[j];
+      yield {type:"line", line:5};
+      j--;
+      yield {type:"vars", j};
+      yield {type:"line", line:3};
+    }
+    yield {type:"line", line:6};
+    arr[j+1] = key;
+    yield {type:"insert", idx:j+1, key, msg:`Insert key ${key} at position ${j+1}`};
+    yield {type:"line", line:7};
+    yield {type:"markSortedRange", upto:i, msg:`Left side [0..${i}] is sorted.`};
+  }
+  yield {type:"done", msg:"Finished!"};
+}
+/* =========================
+   Action player
+========================= */
+function attachGenerator(){
+  const work = state.arr.slice(); // generator mutates its local copy; we mirror via actions
+  if (state.algo === "bubble") state.gen = bubbleSteps(work);
+  if (state.algo === "selection") state.gen = selectionSteps(work);
+  if (state.algo === "insertion") state.gen = insertionSteps(work);
+}
+function hardReset(){
+  stopPlaying();
+  state.comparisons = 0; state.swaps = 0; state.writes = 0;
+  resetHighlights();
+  state.arr = makeArray(state.size, state.preset);
+  if (state.order === "desc" && state.preset === "reversed") {
+    // still fine; keep as is
+  }
+  state.originalArr = state.arr.slice();
+  ensureMasks();
+  state.sortedMask.fill(false);
+  renderBars();
+  attachGenerator();
+  setStatus("Ready");
+  setExplain('Press <b>Step</b> to advance one action, or <b>Play</b> to animate.');
+  updateHeader();
+  setComplexityPanel();
+  updateStats();
+  renderCode();
+}
+function markSortedAll(){
+  state.sortedMask = new Array(state.arr.length).fill(true);
+}
+function clearDim(){
+  state.dimMask = new Array(state.arr.length).fill(false);
+}
+async function applyAction(action){
+  // wipe transient highlights unless action says otherwise
+  state.comparing = [];
+  state.swapping = [];
+  state.keyIndex = state.keyIndex; // keep unless changed
+  clearDim();
+  if (!action) return;
+  if (action.type === "line"){
+    state.codeActiveLine = action.line;
+  }
+  if (action.type === "vars"){
+    if ("i" in action) state.i = action.i;
+    if ("j" in action) state.j = action.j;
+    if ("minIndex" in action) state.minIndex = action.minIndex;
+    if ("key" in action) state.key = action.key;
+    if ("bound" in action) state.bound = action.bound;
+  }
+  if (action.type === "msg"){
+    setExplain(action.msg);
+  }
+  if (action.type === "compare"){
+    state.comparisons++;
+    state.comparing = [action.a, action.b];
+    state.dimMask = state.dimMask.map((_,idx)=> !state.comparing.includes(idx) && !state.sortedMask[idx]);
+    state.codeActiveLine = action.line ?? state.codeActiveLine;
+    setExplain(action.msg || `Compare indices ${action.a} and ${action.b}`);
+  }
+
+  if (action.type === "compareKey"){
+    state.comparisons++;
+    // compare current element with the moving key (hole position)
+    const keyIdx = state.keyIndex;
+    state.comparing = keyIdx !== null ? [action.a, keyIdx] : [action.a];
+    state.dimMask = state.dimMask.map((_,idx)=> !state.comparing.includes(idx) && !state.sortedMask[idx]);
+    state.codeActiveLine = action.line ?? state.codeActiveLine;
+    setExplain(action.msg || `Compare index ${action.a} with key`);
+  }
+  if (action.type === "swap"){
+    state.swaps++;
+    state.writes += 2;
+    state.swapping = [action.a, action.b];
+    setExplain(action.msg || `Swap indices ${action.a} and ${action.b}`);
+    // perform swap in visual array
+    [state.arr[action.a], state.arr[action.b]] = [state.arr[action.b], state.arr[action.a]];
+    renderBars();
+    applyBarClasses();
+    await sleep(Math.min(180, state.stepDelayMs));
+  }
+  if (action.type === "shift"){
+    state.swaps++;      // here swaps counter represents "shifts"
+    state.writes += 1;
+    state.swapping = [action.from, action.to];
+    state.comparing = [action.from]; // emphasise source
+    state.keyIndex = action.from; // move the hole/key highlight left as we shift
+    setExplain(action.msg || `Shift ${action.from} -> ${action.to}`);
+    // update array (visual): copy from->to
+    state.arr[action.to] = state.arr[action.from];
+    state.arr[action.from] = null; // leave the hole where the key now sits
+    renderBars();
+    applyBarClasses();
+    await sleep(Math.min(180, state.stepDelayMs));
+  }
+  if (action.type === "insert"){
+    state.writes += 1;
+    state.keyIndex = action.idx;
+    state.swapping = [action.idx];
+    setExplain(action.msg || `Insert key at ${action.idx}`);
+    state.arr[action.idx] = action.key;
+    renderBars();
+    applyBarClasses();
+    await sleep(Math.min(180, state.stepDelayMs));
+  }
+  if (action.type === "setKey"){
+    state.keyIndex = action.idx;
+    setExplain(action.msg || `Key/candidate at index ${action.idx}`);
+  }
+  if (action.type === "markSorted"){
+    state.sortedMask[action.idx] = true;
+    setExplain(action.msg || `Index ${action.idx} marked sorted`);
+  }
+  if (action.type === "markSortedRange"){
+    const upto = action.upto;
+    state.sortedMask = state.sortedMask.map((v,idx)=> idx<=upto ? true : v);
+    setExplain(action.msg || `Sorted range [0..${upto}]`);
+  }
+  if (action.type === "markAllSorted"){
+    markSortedAll();
+  }
+  if (action.type === "done"){
+    markSortedAll();
+    state.keyIndex = null;
+    setExplain(action.msg || "Finished!");
+    setStatus("Done");
+    stopPlaying();
+  }
+  updateStats();
+  renderCode();
+  applyBarClasses();
+}
+async function stepOnce(){
+  if (!state.gen) attachGenerator();
+  const {value, done} = state.gen.next();
+  if (done){
+    await applyAction({type:"done", msg:"Finished!"});
+    return;
+  }
+  await applyAction(value);
+}
+function stopPlaying(){
+  state.playing = false;
+  if (state.timer) { clearInterval(state.timer); state.timer = null; }
+  $("#playBtn").disabled = false;
+  $("#pauseBtn").disabled = true;
+  $("#stepBtn").disabled = false;
+}
+function startPlaying(){
+  if (state.playing) return;
+  state.playing = true;
+  $("#playBtn").disabled = true;
+  $("#pauseBtn").disabled = false;
+  $("#stepBtn").disabled = true;
+  setStatus("Playing");
+  // Use interval but stepOnce is async; guard with a simple lock
+  let lock = false;
+  state.timer = setInterval(async ()=>{
+    if (lock) return;
+    lock = true;
+    try{
+      await stepOnce();
+    } finally{
+      lock = false;
+    }
+  }, state.stepDelayMs);
+}
+/* =========================
+   UI wiring
+========================= */
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    state.algo = btn.dataset.algo;
+    // adjust counter label
+    $("#swapOrShiftPill").innerHTML = (state.algo==="insertion")
+      ? `Shifts: <b id="swapCount">${state.swaps}</b>`
+      : `Swaps: <b id="swapCount">${state.swaps}</b>`;
+    hardReset();
+  });
+});
+$("#playBtn").addEventListener("click", startPlaying);
+$("#pauseBtn").addEventListener("click", ()=>{
+  setStatus("Paused");
+  stopPlaying();
+});
+$("#stepBtn").addEventListener("click", async ()=>{
+  setStatus("Stepping");
+  await stepOnce();
+});
+$("#resetBtn").addEventListener("click", ()=>{
+  hardReset();
+});
+$("#sizeSlider").addEventListener("input", (e)=>{
+  state.size = parseInt(e.target.value,10);
+  $("#sizeVal").textContent = state.size;
+});
+$("#sizeSlider").addEventListener("change", ()=>hardReset());
+$("#speedSlider").addEventListener("input", (e)=>{
+  const v = parseInt(e.target.value,10);
+  state.stepDelayMs = delayFromSpeed(v);
+  $("#speedVal").textContent = labelSpeed(v);
+  if (state.playing){
+    // restart interval to apply new delay
+    stopPlaying();
+    startPlaying();
+  }
+});
+$("#presetSel").addEventListener("change", (e)=>{
+  state.preset = e.target.value;
+  hardReset();
+});
+$("#orderSel").addEventListener("change", (e)=>{
+  state.order = e.target.value;
+  hardReset();
+});
+/* =========================
+   Init
+========================= */
+(() => {
+  $("#sizeVal").textContent = state.size;
+  $("#speedVal").textContent = labelSpeed(parseInt($("#speedSlider").value,10));
+  state.stepDelayMs = delayFromSpeed(parseInt($("#speedSlider").value,10));
+  hardReset();
+})();
+</script>
+</body>
+</html>
